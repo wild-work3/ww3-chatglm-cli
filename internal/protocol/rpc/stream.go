@@ -6,7 +6,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/pyichiban/chatglm-cli/internal/protocol/jsonl"
+	"wild-work3/chatglm-cli/internal/protocol/jsonl"
 )
 
 // 双向流式调用（W3-26）：invoke 发出后，调用方与被调方都可以在同一 id 上继续写

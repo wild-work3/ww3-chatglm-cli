@@ -27,31 +27,69 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pyichiban/chatglm-cli/internal/glm"
-	"github.com/pyichiban/chatglm-cli/internal/imgutil"
-	"github.com/pyichiban/chatglm-cli/internal/protocol/jsonl"
-	"github.com/pyichiban/chatglm-cli/internal/protocol/stat"
+	"wild-work3/chatglm-cli/internal/glm"
+	"wild-work3/chatglm-cli/internal/imgutil"
+	"wild-work3/chatglm-cli/internal/protocol/jsonl"
+	"wild-work3/chatglm-cli/internal/protocol/stat"
 )
-
 
 const maxRefBytes = 24 << 20 // 参考图字节合计上限
 const maxImages = 4          // cogview 单次一图；n 上限（防风控滥用）
 
 type imageRef struct {
-	B64JSON string `json:"b64_json"`
+	B64JSON  string `json:"b64_json"`
 	MimeType string `json:"mime_type"`
 	URL      string `json:"url"`
 }
 
+// UnmarshalJSON 宽松解码：既收结构体 {"b64_json","mime_type","url"}，也收字符串简写
+// （http(s) URL / data:<mime>;base64,… / 裸 base64）——W3-30 契约里 images 只规定「参考图」语义，
+// 客户端与 gateway 的 multipart 转换都可能只给 URL 字符串（glm-ext 的 decodeRefImages 同口径）。
+func (r *imageRef) UnmarshalJSON(b []byte) error {
+	if len(b) > 0 && b[0] == '"' { // 字符串简写
+		var s string
+		if err := json.Unmarshal(b, &s); err != nil {
+			return err
+		}
+		*r = refFromString(s)
+		return nil
+	}
+	type alias imageRef // 避免递归调用自身
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*r = imageRef(a)
+	return nil
+}
+
+// refFromString 把字符串简写拆成 imageRef：http(s) 走 url；data URI 剥出 mime 与 base64；其余当裸 base64。
+func refFromString(s string) imageRef {
+	s = strings.TrimSpace(s)
+	if strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") {
+		return imageRef{URL: s}
+	}
+	if rest, ok := strings.CutPrefix(s, "data:"); ok { // data:<mime>[;base64],<payload>
+		mime, payload, _ := strings.Cut(rest, ",")
+		if m, ok := strings.CutSuffix(mime, ";base64"); ok {
+			return imageRef{B64JSON: payload, MimeType: m}
+		}
+		return imageRef{B64JSON: payload, MimeType: mime}
+	}
+	return imageRef{B64JSON: s}
+}
+
 type imagesParams struct {
-	Prompt         string     `json:"prompt"`
-	N              int        `json:"n"`
-	Size           string     `json:"size"`          // "WxH" | "auto"
-	AspectRatio    string     `json:"aspect_ratio"`  // "w:h"，优先于 size
-	ResponseFormat string     `json:"response_format"` // b64_json|url，缺省 b64_json
-	Images         []imageRef `json:"images"`
-	UID            string     `json:"uid"`
+	Prompt         string          `json:"prompt"`
+	N              int             `json:"n"`
+	Size           string          `json:"size"`            // "WxH" | "auto"
+	AspectRatio    string          `json:"aspect_ratio"`    // "w:h"，优先于 size
+	ResponseFormat string          `json:"response_format"` // b64_json|url，缺省 b64_json
+	Images         []imageRef      `json:"images"`
+	UID            string          `json:"uid"`
 	Config         json.RawMessage `json:"config"`
+	// AllowImageHost 调用方覆盖配置开关（W3-07：上传第三方图床需显式开启）
+	AllowImageHost bool `json:"allow_image_host"`
 }
 
 // validImageRatio 是 2026-10-15 实测有效集合（与内核 --ratio 同源）。
@@ -64,8 +102,19 @@ func validImageRatio(r string) bool {
 	return false
 }
 
+// ratioBySize 是 OpenAI size → 清言 aspect_ratio 的**穷举**映射（尺寸取自 2026-10-15 实测全集）。
+// 不按 WxH 约分换算：512x512 约分后也是 1:1，但上游并未验证过该尺寸，静默当 1:1 就是把用户请求
+// 换成另一张图（旧版实证上游对未知比例直接降级 1:1 且回 200），故未知值一律 bad_params。
+var ratioBySize = map[string]string{
+	"1024x1024": "1:1",
+	"864x1152":  "3:4",
+	"1152x864":  "4:3",
+	"720x1280":  "9:16",
+	"1280x720":  "16:9",
+}
+
 // ResolveImageRatio 折算 aspect_ratio/size 为 glm ratio：aspect_ratio 优先于 size [契约]；
-// size "auto"→""（内核默认 1:1）；"WxH" 约分后必须在有效集合，否则 bad_params（契约：本地严格校验）。
+// size "auto"→""（内核默认 1:1）；其余必须在实测表内，否则 bad_params（契约：本地严格校验）。
 func ResolveImageRatio(aspectRatio, size string) (string, *jsonl.ErrObj) {
 	if aspectRatio != "" {
 		if !validImageRatio(aspectRatio) {
@@ -77,19 +126,14 @@ func ResolveImageRatio(aspectRatio, size string) (string, *jsonl.ErrObj) {
 	if size == "" || size == "auto" {
 		return "", nil
 	}
-	var w, h int
-	if _, err := fmt.Sscanf(size, "%dx%d", &w, &h); err != nil || w <= 0 || h <= 0 {
-		return "", errf("bad_params", "request", "size %q 不是 WxH 形式", size)
+	if r, ok := ratioBySize[size]; ok {
+		return r, nil
 	}
-	a, b := w, h
-	for b != 0 { // 约分
-		a, b = b, a%b
+	if validImageRatio(size) { // 也允许直接把比例当 size 传
+		return size, nil
 	}
-	r := fmt.Sprintf("%d:%d", w/a, h/a)
-	if !validImageRatio(r) {
-		return "", errf("bad_params", "request", "size %q 折算比例 %s 不支持（可用 1:1|3:4|4:3|9:16|16:9）", size, r)
-	}
-	return r, nil
+	return "", errf("bad_params", "request",
+		"size %q 不支持（可用 1024x1024|864x1152|1152x864|720x1280|1280x720，或 1:1|3:4|4:3|9:16|16:9）", size)
 }
 
 var imgHTTPClient = &http.Client{Timeout: 120 * time.Second}
@@ -233,24 +277,47 @@ func (ch *Channel) ImagesGenerate(ctx context.Context, params jsonl.RawMessage) 
 			produced = append(produced, struct{ url, polished string }{u, pp})
 		}
 	} else { // ── 参考图生图：拼版（含单图：外框+标注链路一致）→ 托管 → 智能编辑（单图输出） ──
+		// 上游只收公网 URL，故非 URL 参考图必须经第三方图床上传。W3-07 隐私红线：
+		// 必须由配置显式开启 allow_image_host（默认关）；单张纯 http(s) URL 不上传，不受此门限制。
+		if len(p.Images) > 1 || p.Images[0].URL == "" {
+			if !ch.config(p.Config).AllowImageHost && !p.AllowImageHost {
+				return nil, errf("bad_params", "request",
+					"参考图需上传到第三方图床（%s）换取公网直链，上游才收；"+
+						"如需使用请在渠道配置开启 allow_image_host（允许上传参考图到第三方图床），"+
+						"或改用单张 http(s) 图片 URL", imgutil.UploadHost())
+			}
+		}
 		budget := 0
 		paths := make([]string, 0, len(p.Images))
-		for i, r := range p.Images {
-			path, e := fetchRef(tmp, i, r, &budget)
-			if e != nil {
-				return nil, e
+		// 单张公网 URL 直传：不下载（上游自己拉），也不上图床——链路最短且无需授权。
+		// 先判形态再落盘，否则离线/内网 URL 会因本机 DNS 解析失败而误报 image_invalid。
+		singleURL := len(p.Images) == 1 && p.Images[0].URL != ""
+		if !singleURL {
+			for i, r := range p.Images {
+				path, e := fetchRef(tmp, i, r, &budget)
+				if e != nil {
+					return nil, e
+				}
+				paths = append(paths, path)
 			}
-			paths = append(paths, path)
 		}
-		sheet, w, h, err := imgutil.BuildRefSheet(paths)
-		if err != nil {
-			return nil, errf("image_invalid", "request", "参考图拼版失败: %v", err)
+		refURL := ""
+		if singleURL {
+			refURL = p.Images[0].URL
+		} else {
+			sheet, w, h, err := imgutil.BuildRefSheet(paths)
+			if err != nil {
+				return nil, errf("image_invalid", "request", "参考图拼版失败: %v", err)
+			}
+			sheetURL, _, err := imgutil.UploadJPEG(sheet)
+			if err != nil {
+				return nil, errf("server", "channel", "拼版图上传失败: %v", err)
+			}
+			refURL = sheetURL
+			note = fmt.Sprintf("%d 张参考图拼版(%dx%d)+智能编辑；输出比例跟随拼版图", len(paths), w, h)
 		}
-		sheetURL, _, err := imgutil.UploadJPEG(sheet)
-		if err != nil {
-			return nil, errf("server", "channel", "拼版图上传失败: %v", err)
-		}
-		res, err := c.EditImage(sheetURL, glm.EDIT_PROMPT_CONSTRAINT+"\n\n"+p.Prompt, "", ratio)
+		// 改图输出比例强制跟随输入图（glm-ext 同口径：body 里恒为默认 1:1，不传用户请求的比例）
+		res, err := c.EditImage(refURL, glm.EDIT_PROMPT_CONSTRAINT+"\n\n"+p.Prompt, "", "")
 		if err != nil {
 			return nil, mapClientErr(err)
 		}
@@ -259,7 +326,6 @@ func (ch *Channel) ImagesGenerate(ctx context.Context, params jsonl.RawMessage) 
 			return nil, errf("server", "channel", "智能编辑未返回 image_url: %s", truncJSON(res))
 		}
 		produced = append(produced, struct{ url, polished string }{outURL, ""})
-		note = fmt.Sprintf("%d 张参考图拼版(%dx%d)+智能编辑；输出比例跟随拼版图", len(paths), w, h)
 	}
 
 	// ── 组装 result data[] ──
@@ -286,8 +352,12 @@ func (ch *Channel) ImagesGenerate(ctx context.Context, params jsonl.RawMessage) 
 		rec.Model = "glm/cogview@" + ratio
 	}
 	ch.Record(rec)
-	out := map[string]any{"created": created, "data": data,
-		"aspect_ratio": ratioOr(ratio), "usage": nil}
+	// 改图（参考图）输出比例强制跟随输入图，回显请求值就是撒谎（glm-ext 同口径）
+	editPath := len(p.Images) > 0
+	out := map[string]any{"created": created, "data": data, "usage": nil}
+	if !editPath {
+		out["aspect_ratio"] = ratioOr(ratio)
+	}
 	if note != "" {
 		out["note"] = note
 	}

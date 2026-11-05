@@ -14,9 +14,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/pyichiban/chatglm-cli/internal/glm"
-	"github.com/pyichiban/chatglm-cli/internal/protocol/jsonl"
-	"github.com/pyichiban/chatglm-cli/internal/protocol/stat"
+	"wild-work3/chatglm-cli/internal/glm"
+	"wild-work3/chatglm-cli/internal/protocol/jsonl"
+	"wild-work3/chatglm-cli/internal/protocol/stat"
 )
 
 // 插件标识（manifest 与模型前缀）。
@@ -35,9 +35,10 @@ func mustJSON(v any) json.RawMessage { b, _ := json.Marshal(v); return b }
 
 // Channel 是一次插件进程会话的根对象：持有数据目录、authstore、登录编排与统计器。
 type Channel struct {
-	Data    string
-	Auth    string        // --auth 凭据标识（缺省自动选择）
-	Base    string        // --base-url 覆盖
+	Data     string
+	Auth     string        // --auth 凭据标识（缺省自动选择）
+	Base     string        // --base-url 覆盖
+	Proxy    string        // --proxy 覆盖（空则跟随 HTTPS_PROXY 环境变量）
 	Timeout  time.Duration // --timeout 覆盖（非流式请求）
 	Debug    bool
 	Insecure bool
@@ -95,44 +96,13 @@ func (ch *Channel) SetConfig(configJSON string) error {
 	return nil
 }
 
-// cfgStr 取配置字符串键。
-func (ch *Channel) cfgStr(key string) string {
-	if ch.cfg == nil {
-		return ""
-	}
-	s, _ := ch.cfg[key].(string)
-	return s
-}
-
 // Client 按请求构造内核客户端：uid（params.account_uid）> channel_config.auth > --auth >
 // auths 目录里第一个未过期凭据 > 旧版 glm_credential.json / GLM_* 环境变量（单机直用模式）。
 func (ch *Channel) Client(ctx context.Context, uid string, channelCfg json.RawMessage) (*glm.Client, error) {
-	// channel_config 覆盖（非空键）
-	baseURL, timeout, authName := ch.Base, ch.Timeout, ch.Auth
-	var extra map[string]any
-	if len(channelCfg) > 0 {
-		_ = json.Unmarshal(channelCfg, &extra)
-	}
-	get := func(k string) string { if extra != nil { s, _ := extra[k].(string); return s }; return "" }
-	if v := get("base_url"); v != "" {
-		baseURL = v
-	} else if v := ch.cfgStr("base_url"); v != "" {
-		baseURL = v
-	}
-	if v := get("timeout"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			timeout = time.Duration(n) * time.Second
-		}
-	}
-	if v := get("auth"); v != "" {
-		authName = v
-	} else if v := ch.cfgStr("auth"); v != "" {
-		authName = v
-	}
-
+	cfg := ch.config(channelCfg)
 	name := uid
 	if name == "" {
-		name = authName
+		name = cfg.Auth
 	}
 	var cred *glm.Credential
 	switch {
@@ -164,7 +134,97 @@ func (ch *Channel) Client(ctx context.Context, uid string, channelCfg json.RawMe
 			}
 		}
 	}
-	return glm.NewClient(ctx, cred, glm.Opt{Base: baseURL, Timeout: timeout, Debug: ch.Debug, Insecure: ch.Insecure})
+	return glm.NewClient(ctx, cred, glm.Opt{Base: cfg.BaseURL, Timeout: cfg.Timeout,
+		Proxy: cfg.Proxy, Debug: ch.Debug, Insecure: ch.Insecure})
+}
+
+// Config 是本渠道的生效配置（优先级：调用方 params.config / channel_config >
+// --config / <data>/config.json > 命令行开关 > 默认值）。
+type Config struct {
+	BaseURL        string
+	Timeout        time.Duration
+	Auth           string // 指定凭据标识
+	Proxy          string // 空=跟随环境变量
+	AllowImageHost bool   // 允许把参考图上传第三方图床（W3-07 隐私红线，默认关）
+}
+
+// config 合并三层配置。布尔开关只单向开（false 不覆盖）——面板逐项提交时
+// 未勾选的字段会以 false 出现，若允许覆盖会把手写配置里的 true 打回 false。
+//
+// 特例：base_url 显式空串视为「清空」。旧版装置（temp/setup_cap_e2e.py）靠传空串
+// 让渠道打真实上游，若空串也当「未设置」，就会静默回落到 <data>/config.json 里的
+// mock 地址，live 测试变假阳性（W3-36 陷阱 44 同源）。
+func (ch *Channel) config(raw json.RawMessage) Config {
+	cfg := Config{BaseURL: ch.Base, Timeout: ch.Timeout, Auth: ch.Auth, Proxy: ch.Proxy}
+	apply := func(m map[string]any) {
+		if m == nil {
+			return
+		}
+		if s, ok := m["base_url"].(string); ok {
+			cfg.BaseURL = s // 空串 = 显式清空，回落官方地址
+		}
+		if s, _ := m["auth"].(string); s != "" {
+			cfg.Auth = s
+		}
+		if s, _ := m["proxy"].(string); s != "" {
+			cfg.Proxy = s
+		}
+		if v, ok := m["allow_image_host"].(bool); ok && v {
+			cfg.AllowImageHost = true
+		}
+		switch v := m["timeout"].(type) {
+		case float64: // JSON 数字
+			if v > 0 {
+				cfg.Timeout = time.Duration(v) * time.Second
+			}
+		case string:
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				cfg.Timeout = time.Duration(n) * time.Second
+			}
+		}
+	}
+	apply(ch.cfg)
+	if len(raw) > 0 {
+		var m map[string]any
+		if json.Unmarshal(raw, &m) == nil {
+			apply(m)
+		}
+	}
+	return cfg
+}
+
+// saveConfig 把合并后的键写回 <data>/config.json（原子写 0600）。
+// 只写可落盘的普通配置项——凭据（refresh_token）绝不进配置文件。
+func (ch *Channel) saveConfig() error {
+	if err := os.MkdirAll(ch.Data, 0o700); err != nil {
+		return err
+	}
+	b, err := json.MarshalIndent(ch.cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	p := filepath.Join(ch.Data, "config.json")
+	tmp := p + ".tmp"
+	if err := os.WriteFile(tmp, append(b, '\n'), 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, p)
+}
+
+// setCfg 合并一个键值进内存配置（空串/空值视为「未设置」，不覆盖）。
+func (ch *Channel) setCfg(k string, v any) {
+	if ch.cfg == nil {
+		ch.cfg = map[string]any{}
+	}
+	switch x := v.(type) {
+	case string:
+		if x == "" {
+			return
+		}
+	case nil:
+		return
+	}
+	ch.cfg[k] = v
 }
 
 // Record 写一条流水（stat 未初始化时静默跳过）。token 未上报记 -1 由调用方保证。

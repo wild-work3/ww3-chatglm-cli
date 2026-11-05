@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -19,6 +20,14 @@ var sangUploadURL = "https://file.sang.pub/api/upload"
 var uploadChannels = []string{"meitu", "icve"} // 顺序即回退顺序
 
 var uploadClient = &http.Client{Timeout: 120 * time.Second}
+
+// UploadHost 返回图床主机名（供错误文案提示用户，不含协议）。
+func UploadHost() string {
+	if u, err := url.Parse(sangUploadURL); err == nil {
+		return u.Host
+	}
+	return sangUploadURL
+}
 
 // UploadJPEG 把 JPEG 字节传到图床，返回公网直链。
 // 逐通道尝试：HTTP 传输错误或 code!=200 都视为该通道失败，换下一个。

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pyichiban/chatglm-cli/internal/channel"
+	"wild-work3/chatglm-cli/internal/channel"
 )
 
 // captureStdout/Stderr 换掉标准流执行 fn，返回捕获内容与退出码。

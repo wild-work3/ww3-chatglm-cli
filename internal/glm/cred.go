@@ -80,8 +80,16 @@ func (c *Credential) AccessExp() int64  { return jwtInt(c.AccessToken, "exp") }
 func (c *Credential) RefreshExp() int64 { return jwtInt(c.RefreshToken, "exp") }
 
 // AccessExpired 判断 access 是否需要刷新（默认提前 AUTH_SKEW 秒，避免边界失败）。
+// ww3 authstore 的显式 expiresAt 优先于 JWT（与 W3Auth.AccessExpired 同口径）——
+// 夹具与旧版凭据常把 token 写成非 JWT，只看 JWT 会把长期凭据误判成过期。
 func (c *Credential) AccessExpired() bool {
-	return c.AccessToken == "" || c.AccessExp() <= time.Now().Unix()+AUTH_SKEW
+	if c.AccessToken == "" {
+		return true
+	}
+	if c.w3ExpiresAt > 0 {
+		return c.w3ExpiresAt-time.Now().Unix() < AUTH_SKEW
+	}
+	return c.AccessExp() <= time.Now().Unix()+AUTH_SKEW
 }
 
 // AbsorbJWT 用 refresh（优先）或 access 的 payload 补齐 UserID / DeviceID。

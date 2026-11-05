@@ -10,8 +10,9 @@ import (
 	"io"
 	"sync"
 	"sync/atomic"
+	"time"
 
-	"github.com/pyichiban/chatglm-cli/internal/protocol/jsonl"
+	"wild-work3/chatglm-cli/internal/protocol/jsonl"
 )
 
 // ErrClosed 表示 RPC 连接已关闭。
@@ -180,7 +181,7 @@ func (c *Client) Invoke(ctx context.Context, method string, params any, cb *Call
 				}
 				// 失败
 				if ev.Error != nil {
-					err = &RPCError{ID: id, Kind: ev.Error.Kind, Scope: ev.Error.Scope, Message: ev.Error.Message}
+					err = &RPCError{ID: id, Kind: ev.Error.Kind, Scope: ev.Error.Scope, Message: ev.Error.Message, RetryAfterMs: ev.Error.RetryAfterMs}
 				} else {
 					err = fmt.Errorf("rpc: invoke %s failed (no error detail)", method)
 				}
@@ -193,9 +194,21 @@ func (c *Client) Invoke(ctx context.Context, method string, params any, cb *Call
 // RPCError 携带 kind/scope 供上层判断重试/路由。
 type RPCError struct {
 	ID, Kind, Scope, Message string
+	// RetryAfterMs 上游明示的重试等待毫秒数（排队/限流帧），0=未给。
+	// core 拿它当冷却时长（旧版 Queued.Cooldown() 取 retryAfter 的等价物）。
+	RetryAfterMs int64
 }
 
 func (e *RPCError) Error() string { return fmt.Sprintf("[%s]%s: %s", e.Kind, e.Scope, e.Message) }
+
+// RetryAfterOf 提取错误携带的重试等待时长；非 RPCError 或未给时返回 0。
+func RetryAfterOf(err error) time.Duration {
+	var re *RPCError
+	if errors.As(err, &re) && re.RetryAfterMs > 0 {
+		return time.Duration(re.RetryAfterMs) * time.Millisecond
+	}
+	return 0
+}
 
 // Close 关闭连接（向进程发送 shutdown 由调用方决定，这里只管 IO）。
 func (c *Client) Close() {

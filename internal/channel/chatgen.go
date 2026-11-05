@@ -15,11 +15,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pyichiban/chatglm-cli/internal/glm"
-	"github.com/pyichiban/chatglm-cli/internal/protocol/chat"
-	"github.com/pyichiban/chatglm-cli/internal/protocol/jsonl"
-	"github.com/pyichiban/chatglm-cli/internal/protocol/plugin"
-	"github.com/pyichiban/chatglm-cli/internal/protocol/stat"
+	"wild-work3/chatglm-cli/internal/glm"
+	"wild-work3/chatglm-cli/internal/protocol/chat"
+	"wild-work3/chatglm-cli/internal/protocol/jsonl"
+	"wild-work3/chatglm-cli/internal/protocol/plugin"
+	"wild-work3/chatglm-cli/internal/protocol/stat"
 )
 
 // pluginEmit 短别名。
@@ -125,6 +125,14 @@ func (ch *Channel) ChatGenerate(ctx context.Context, params jsonl.RawMessage, em
 	agent, mode, selected := ResolveModel(req.Model)
 	if agent == "" { // 带了别的渠道前缀
 		return nil, errf("model_blocked", "model", "模型 %q 不属于 %s 渠道", req.Model, ID)
+	}
+	// 上游只接受单条 user 提问（历史由上游按 conversation_id 自己维护）。
+	// 带 assistant 历史的多轮请求必须显式拒绝，不能静默丢历史（用户会误以为上下文生效）。
+	for _, m := range req.Messages {
+		if m.Role == "assistant" {
+			return nil, errf("bad_params", "request",
+				"不支持多轮对话：上游只接受单条 user 提问，请勿携带 assistant 历史（续轮请传 conversation_id）")
+		}
 	}
 	prompt := lastUserPrompt(req.Messages)
 	if prompt == "" {

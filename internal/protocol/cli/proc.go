@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pyichiban/chatglm-cli/internal/protocol/jsonl"
-	"github.com/pyichiban/chatglm-cli/internal/protocol/rpc"
+	"wild-work3/chatglm-cli/internal/protocol/jsonl"
+	"wild-work3/chatglm-cli/internal/protocol/rpc"
 )
 
 // Proc 是一个被我们自驱动的子进程（插件 daemon/worker、core、gateway）。
@@ -192,7 +192,7 @@ func (p *Proc) Invoke(ctx context.Context, st Step) (*Result, error) {
 	if len(evResult.Result) > 0 {
 		res.Raw = string(evResult.Result)
 		_ = json.Unmarshal(evResult.Result, &res.Result)
-		p.Log.Infof("← %s.%s result=%s（%s，%d 事件）", p.Name, st.Method, compact(string(evResult.Result)), res.Took.Round(time.Millisecond), len(res.Events))
+		p.Log.Infof("← %s.%s result=%s（%s，%d 事件）", p.Name, st.Method, RedactJSON(compact(string(evResult.Result))), res.Took.Round(time.Millisecond), len(res.Events))
 	} else {
 		p.Log.Infof("← %s.%s ok（%s，%d 事件）", p.Name, st.Method, res.Took.Round(time.Millisecond), len(res.Events))
 	}

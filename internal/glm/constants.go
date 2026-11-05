@@ -48,6 +48,18 @@ const (
 	// 输出比例强制跟随输入图（aspect_ratio 传值无效）；耗时 17~22s 同步返回。
 	// 多张参考图由调用方先客户端拼版（internal/imgutil，见 contract.json image_pipeline）。
 	EP_IMAGE_REFERENCE = "/chatglm/drawing-api/v1/image/reference"
+
+	// ── 积分与签到族（移植自 glm-ext，均已在真机实证） ──
+	// EP_MEMBER_INFO 是**唯一能拿到积分余额的接口**：left_score 单位是「分」（1 积分 = 100 分），
+	// score_rule 是规则文案（实测「免费用户，登录赠送200积分/天」）。
+	EP_MEMBER_INFO = "/chatglm/member-api/member/member_info"
+	// EP_DAILY_LOGIN_SCORE 是在线的每日积分来源：status=0 成功，status=10001「今日已领取」（幂等）。
+	EP_DAILY_LOGIN_SCORE = "/chatglm/member-api/member/daily_login_score"
+	// 以下四个属旧 activity-api 签到族：上游已下线（返回「活动已结束」），保留为尽力而为的增量收益。
+	EP_CHECKIN_INFO = "/chatglm/activity-api/activity/daily/check_in_info"
+	EP_CHECKIN      = "/chatglm/activity-api/activity/daily/check_in"
+	EP_PRIZE_LIST   = "/chatglm/activity-api/activity/prize_list"
+	EP_DRAW_PRIZE   = "/chatglm/activity-api/activity/draw_prize"
 )
 
 // ── IDE 客户端指纹（逐头照抄，WAF 校验的是「头组合指纹」）─────
@@ -78,6 +90,10 @@ const (
 	READ_TIMEOUT    = 60  // 秒
 	AUTH_SKEW       = 300 // access 提前 5 分钟视为过期，避免边界
 )
+
+// scoreUnit 是上游 left_score 的单位换算：1 积分 = 100 分。
+// 依据（2026-09-26 实测）：接口返回 left_score=300000，而清言 App 界面显示 3000 积分。
+const scoreUnit = 100
 
 // ── 业务码 ──────────────────────────────────────────────────
 const (

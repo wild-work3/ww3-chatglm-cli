@@ -63,6 +63,9 @@ type Usage struct {
 	Cache            *CacheUsage `json:"cache,omitempty"`
 	TimeMs           int64       `json:"time_ms,omitempty"`
 	FirstTokenMs     int64       `json:"first_token_ms,omitempty"`
+	// UsageSource 标记 token 数量的来源（W3-34）：reported=上游实报，estimated=core 粗估。
+	// 插件上报上游 usage 时必须带 reported，否则 core 无法区分「明确 0」与「未上报」。
+	UsageSource
 }
 
 // CacheUsage 缓存计量：cached=命中, write=写入, *Reported 标记上游是否真报。
@@ -115,11 +118,7 @@ func (a *Accumulator) Add(event string, fields map[string]any) {
 			a.FinishReason = r
 		}
 	case "usage":
-		b, _ := json.Marshal(fields)
-		var u Usage
-		if json.Unmarshal(b, &u) == nil {
-			a.Usage = &u
-		}
+		MergeUsage(&a.Usage, fields)
 	case "completed", "incomplete":
 		a.Done = true
 	case "error":

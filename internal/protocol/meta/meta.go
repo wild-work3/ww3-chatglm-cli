@@ -1,6 +1,8 @@
 // Package meta 定义插件元数据（manifest）、能力清单与模型/资源信息结构（PLUGIN_PROTOCOL §3/§5）。
 package meta
 
+import "strings"
+
 // Manifest 插件元数据（控制面 initialize 上报，也用于清单/商店）。
 type Manifest struct {
 	ID           string       `json:"id"`
@@ -10,9 +12,22 @@ type Manifest struct {
 	Protocol     ProtocolRng  `json:"protocol"`
 	Execution    Execution    `json:"execution"`
 	Capabilities Capabilities `json:"capabilities,omitempty"`
-	Icon         string       `json:"icon,omitempty"`
-	Color        string       `json:"color,omitempty"`
-	Description  string       `json:"description,omitempty"`
+	// DefaultChannels 声明安装后应存在的渠道实例；空表表示不自动创建。
+	// initialize 返回同一份 Manifest，旧插件不带此字段仍可正常运行。
+	DefaultChannels []DefaultChannel `json:"default_channels,omitempty"`
+	// MultiChannels=true：本插件的渠道实例由用户在面板里自建（可任意多个），不靠 default_channels 预置。
+	// 实例 ID 就是模型命名空间前缀（custom-api 这类「一个端点 = 一个前缀」的渠道；W3-44）。
+	MultiChannels bool   `json:"multi_channels,omitempty"`
+	Icon          string `json:"icon,omitempty"`
+	Color         string `json:"color,omitempty"`
+	Description   string `json:"description,omitempty"`
+}
+
+// DefaultChannel 是插件自带的渠道实例模板。Config 仅含可公开的默认值，不含凭据。
+type DefaultChannel struct {
+	ID     string         `json:"id"`
+	Name   string         `json:"name"`
+	Config map[string]any `json:"config,omitempty"`
 }
 
 // ProtocolRng 协议版本兼容区间。
@@ -65,6 +80,46 @@ type ModelInfo struct {
 	InputPrice   *float64      `json:"input_price,omitempty"`
 	OutputPrice  *float64      `json:"output_price,omitempty"`
 	Capabilities Capabilities2 `json:"capabilities,omitempty"`
+	// MaxTokens 上游声明的**单次响应输出上限**（tokens）；nil = 未声明，消费方不得编造。
+	// 与 Context（输入上下文）不是一个概念：OpenRouter 称 max_completion_tokens，
+	// OpenAI 官方 /models 根本不返回，故多数渠道为 nil。下游用于 /v1/models 的
+	// max_output_tokens 字段（缺该字段时客户端只按自己的默认值截断）。
+	MaxTokens *int `json:"max_tokens,omitempty"`
+
+	// 思考档位（W3-32，迁移旧版 provider.ModelInfo 的 issue #96 能力）。
+	//
+	// Efforts 是上游目录**显式声明**的可选档位枚举（wire 值原样，如
+	// ["none","low","medium","high","xhigh"]）。nil = 上游未声明 → 消费方
+	// **不得自行编造**（与 Context 的「未知不声明」哲学一致）。
+	// 空切片与 nil 语义相同（上游给了空表等同没声明）。
+	//
+	// 跨渠道唯一通用值只有 "off"（关思考）；其余枚举由渠道自定，见 CleanEfforts。
+	Efforts []string `json:"efforts,omitempty"`
+	// DefaultEffort 上游声明的默认档位；必须落在 Efforts 内，否则视为未声明（空）。
+	DefaultEffort string `json:"default_effort,omitempty"`
+	// CanDisableThinking 该模型思考能否真正关闭。三态：nil = 上游未声明；
+	// false = **假关**（关掉照样思考照样计费，gemini-ext 实测 195 token）或不可关；
+	// true = 确认可关。消费方据此把 "off" 解释成「请求了但可能无效」。
+	CanDisableThinking *bool `json:"can_disable_thinking,omitempty"`
+}
+
+// CleanEfforts 规范化上游声明档位表：去空白、去重保序、丢空串；
+// 全部无效时返回 nil（「上游没给合法列表就不编档」）。
+// 与旧版 dev provider.CleanEfforts 同口径。
+func CleanEfforts(raw []string) []string {
+	out := make([]string, 0, len(raw))
+	seen := make(map[string]bool, len(raw))
+	for _, s := range raw {
+		if s = strings.TrimSpace(s); s == "" || seen[s] {
+			continue
+		}
+		seen[s] = true
+		out = append(out, s)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // Capabilities2 模型能力标记（勿臆造：未探测就不置 true）。
@@ -83,7 +138,7 @@ type ResourceItem struct {
 	Unit     string   `json:"unit,omitempty"` // 空=credits；"token"
 	Usable   bool     `json:"usable,omitempty"`
 	InfoOnly bool     `json:"info_only,omitempty"`
-	Key      string   `json:"key,omitempty"`       // 稳定 ID 供 ledger 差分对账
+	Key      string   `json:"key,omitempty"`       // 稳定 ID 供 stat 差分对账
 	ExpireAt string   `json:"expire_at,omitempty"` // YYYY-MM-DD 墙钟日 或 RFC3339；空=未下发
 }
 

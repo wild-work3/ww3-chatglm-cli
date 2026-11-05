@@ -1,6 +1,6 @@
 // Package stat 是渠道插件自有的**统计流水**（W3-22 定案）。
 //
-// 为什么插件要自己记：core 的 ledger 只记「core 看到的」——它不知道上游返回的
+// 为什么插件要自己记：core 的 stat 记账只记「core 看到的」——它不知道上游返回的
 // 真实缓存命中、不知道积分包消耗、不知道一次控制面调用的成败细节。面板的
 // 「用量与流水 / 运行统计」需要这些**渠道事实**，而事实只有插件知道（W3-09
 // 「插件报告事实，core 执行策略」）。
@@ -54,6 +54,13 @@ type Record struct {
 	CachedTokens     int  `json:"cached_tokens"`
 	CachedReported   bool `json:"cached_reported,omitempty"`
 
+	// 三维 token 是否由上游实报（W3-34）。留 false 时 Append 按「未上报」处理：
+	// 值为 0 一律改写成 -1，避免把「上游没说」记成「明确是 0」。
+	// 插件若确实拿到上游的显式 0，置 true 即可保留 0。
+	PromptReported     bool `json:"prompt_reported,omitempty"`
+	CompletionReported bool `json:"completion_reported,omitempty"`
+	TotalReported      bool `json:"total_reported,omitempty"`
+
 	CreditsDelta  *float64 `json:"credits_delta,omitempty"` // 本次观测到的积分变化（负数=消耗）
 	CreditsRemain *float64 `json:"credits_remain,omitempty"`
 
@@ -104,6 +111,7 @@ func (s *Store) Append(r Record) {
 	if r.TS == "" {
 		r.TS = time.Now().Format(time.RFC3339)
 	}
+	r = normalize(r)
 	if err := s.appendLine(s.statsPath(), r); err != nil {
 		return
 	}
@@ -185,6 +193,33 @@ func (s *Store) mergeDaily(r Record) {
 	f.Sync()
 	f.Close()
 	os.Rename(tmp, s.dailyPath())
+}
+
+// normalize 统一「未上报」口径（W3-22 / W3-34）。
+//
+// 这条规则曾经散落在 18 份插件代码里各写一遍，实现互不一致（有的把 usage==nil 记 -1、
+// 有的记 0；有的把「有 usage 但三维全 0」当未上报、有的当实报 0）。收口到这里之后，
+// 所有插件的流水口径必然一致：**未标记 reported 且值为 0 的维度记 -1**（读侧判 <0 即未知）。
+//
+// 只对对话流水生效：积分/签到/模型列表没有 token 维度，0 就是 0。
+func normalize(r Record) Record {
+	if r.Kind != KindChat {
+		return r
+	}
+	if !r.PromptReported && r.PromptTokens == 0 {
+		r.PromptTokens = -1
+	}
+	if !r.CompletionReported && r.CompletionTokens == 0 {
+		r.CompletionTokens = -1
+	}
+	if !r.TotalReported && r.TotalTokens == 0 {
+		r.TotalTokens = -1
+	}
+	// 缓存：没报「命中数」时值为 0 也无意义（读侧看 CachedReported 决定是否进分母）
+	if !r.CachedReported && r.CachedTokens == 0 {
+		r.CachedTokens = -1
+	}
+	return r
 }
 
 func dailyKey(day string, r Record) string {

@@ -1,6 +1,6 @@
 # chatglm-cli（命令名 `glm2cli`）—— 智谱清言私有接口的 Go 命令行客户端
 
-模块路径：`github.com/pyichiban/chatglm-cli`，入口在 `cmd/glm2cli`（所以 `go install` 产出的二进制就叫 `glm2cli`）。
+模块路径：`wild-work3/chatglm-cli`，入口在 `cmd/glm2cli`（所以 `go install` 产出的二进制就叫 `glm2cli`）。
 
 单个静态二进制（零第三方依赖），把 [chatglm.cn](https://chatglm.cn) 网页/IDE 私有接口暴露成命令行：
 **输入提示词 → 持续输出 JSONL 事件流**，多轮对话靠显式传 `--cid`（conversation_id）续接。
@@ -18,15 +18,19 @@
 
 ```bash
 go test ./...                                   # 离线测试（真实帧回放，不发网络请求）
-bash scripts/build.sh                           # win+linux 单文件到 dist/
+bash build.sh                                   # win+linux 单文件到 dist/（产物 dist/chatglm-cli.exe）
 
 # 手动构建
-go build -trimpath -ldflags "-s -w" -o dist/glm2cli.exe ./cmd/glm2cli     # Windows
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/glm2cli ./cmd/glm2cli
+go build -trimpath -ldflags "-s -w" -o dist/chatglm-cli.exe ./cmd/glm2cli     # Windows
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/chatglm-cli ./cmd/glm2cli
 
 # 装成全局命令（产出可执行文件 glm2cli）
-go install github.com/pyichiban/chatglm-cli/cmd/glm2cli@latest
+go install wild-work3/chatglm-cli/cmd/glm2cli@latest
 ```
+
+> **构建产物名**：`bash build.sh` 产 `dist/chatglm-cli.exe`（ww3 交付物约定名）。
+> `go install ./cmd/glm2cli` 仍按 Go 规则产 `glm2cli`，两者是同一个程序的两种命名。
+> `scripts/build.sh` 保留为兼容垫片，直接转调仓根 `build.sh`。
 
 拷到 PATH 即可（例如 `D:/dev/Git/cmd/glm2cli.exe`，与 rg/fd/jq 同目录）。
 
@@ -91,7 +95,7 @@ conv read       MESSAGE_ID                          标记已读
 | `--title` | 新会话首轮答完顺手改名（「增 + 改」一次做完） |
 | `--style` / `--scene` | 生图风格/场景，**实测已失效**，仅透传 |
 
-全局 flag：`--cred --base --timeout --dry-run -v --insecure`；`--version`/`-V` 可放任意位置。不支持代理（IDE 通道直连）。
+全局 flag：`--cred --base --timeout --proxy --dry-run -v --insecure`；`--version`/`-V` 可放任意位置。`--proxy` 未给时读环境变量 `HTTPS_PROXY`/`HTTP_PROXY`（国内直连更快，代理仅供海外环境用）。
 `--timeout` **只作用于非流式请求**（含凭据刷新）；对话流刻意不设任何超时（带超时会把长回答掐断且没有终止帧）。
 
 `raw` 的例子（本次就是靠它发现历史端点的，不需要为探测改代码重编）：

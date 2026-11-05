@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pyichiban/chatglm-cli/internal/glm"
-	pcli "github.com/pyichiban/chatglm-cli/internal/protocol/cli"
-	"github.com/pyichiban/chatglm-cli/internal/protocol/jsonl"
+	"wild-work3/chatglm-cli/internal/glm"
+	pcli "wild-work3/chatglm-cli/internal/protocol/cli"
+	"wild-work3/chatglm-cli/internal/protocol/jsonl"
 )
 
 func registerInfo(app *pcli.App, reg map[string]handler) {

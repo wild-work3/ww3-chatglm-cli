@@ -21,10 +21,10 @@ import (
 	"syscall"
 	"time"
 
-	pcli "github.com/pyichiban/chatglm-cli/internal/protocol/cli"
+	pcli "wild-work3/chatglm-cli/internal/protocol/cli"
 
-	"github.com/pyichiban/chatglm-cli/internal/channel"
-	"github.com/pyichiban/chatglm-cli/internal/glm"
+	"wild-work3/chatglm-cli/internal/channel"
+	"wild-work3/chatglm-cli/internal/glm"
 )
 
 // VERSION 与 go.mod 保持一致（发版时同步）。
@@ -40,9 +40,9 @@ type env struct {
 // common 是渠道类命令共用的开关（PLUGIN_CLI §3；call/stdio 只有 --data）。
 // 全部存 flagset 指针：注册时值还没解析，存值拷贝永远是空串。
 type common struct {
-	data, auth, config, base *string
-	timeout                  *int
-	debug, insecure          *bool
+	data, auth, config, base, proxy *string
+	timeout                         *int
+	debug, insecure                 *bool
 }
 
 func addCommon(c *pcli.Command) *common {
@@ -51,6 +51,7 @@ func addCommon(c *pcli.Command) *common {
 		auth:     c.Str("auth", "", "凭据标识 = auths 目录下凭据文件名（去 .json）"),
 		config:   c.Str("config", "", "渠道配置 JSON 或 @file（覆盖 <data>/config.json）"),
 		base:     c.Str("base-url", "", "上游基址覆盖（一般不改）"),
+		proxy:    c.Str("proxy", "", "代理地址（如 http://127.0.0.1:10809）；缺省跟随 HTTPS_PROXY"),
 		timeout:  c.Int("timeout", 0, "非流式请求超时（秒）；流式不受限"),
 		debug:    c.Bool("debug", false, "详细日志到 stderr"),
 		insecure: c.Bool("insecure", false, "跳过 TLS 校验（仅本地抓包调试）"),
@@ -64,6 +65,7 @@ func (e *env) open(cf *common) (*channel.Channel, error) {
 		return nil, err
 	}
 	ch.Auth, ch.Base, ch.Debug, ch.Insecure = *cf.auth, *cf.base, *cf.debug, *cf.insecure
+	ch.Proxy = *cf.proxy
 	if *cf.timeout > 0 {
 		ch.Timeout = time.Duration(*cf.timeout) * time.Second
 	}

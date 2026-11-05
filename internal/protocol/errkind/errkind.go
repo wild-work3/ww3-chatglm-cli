@@ -42,6 +42,9 @@ const (
 	// ReasoningLoop 思考链死循环（发癫）拦截器命中：主动终止 SSE 并向下游报错（W3-26）。
 	// 刻意**不**可换号（见 Rotatable）：死循环是模型/请求级问题，换账号必然复现。
 	ReasoningLoop Kind = "reasoning_loop"
+	// NotSupported 渠道不支持该可选能力（W3-30：systemone.decide / images.generate 的统一兜底）。
+	// scope=channel，不可换号不冷却（Rotatable=false）——换号只会撞到同一个不支持。
+	NotSupported Kind = "not_supported"
 )
 
 // Rotatable 报告该错误是否应该换号重试（旧版 Rotatable() 语义）。

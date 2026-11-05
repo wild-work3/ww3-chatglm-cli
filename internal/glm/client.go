@@ -34,6 +34,10 @@ type Client struct {
 	Debug   bool
 	Warn    func(string) // 非致命提示（CLI 侧接成 warn 事件 / stderr 日志）
 
+	// IdleTimeout 聊天 SSE 流中空闲超时（Stream 无总时长上限，靠本字段兜底
+	// 「上游中途卡死」）。<=0 表示禁用（测试用）。
+	IdleTimeout time.Duration
+
 	ctx     context.Context
 	hc      *http.Client
 	jarURL  *url.URL
@@ -46,6 +50,7 @@ type Opt struct {
 	Insecure bool
 	Timeout  time.Duration
 	Debug    bool
+	Proxy    string // 空则跟随环境变量（http.ProxyFromEnvironment）
 }
 
 func NewClient(ctx context.Context, cred *Credential, opt Opt) (*Client, error) {
@@ -62,8 +67,22 @@ func NewClient(ctx context.Context, cred *Credential, opt Opt) (*Client, error) 
 	if err != nil {
 		return nil, NewErr(CUsage, "base 地址无效: %v", err)
 	}
-	// V12 对齐：不支持代理（IDE 通道实测直连稳定）
-	tr := &http.Transport{}
+	tr := &http.Transport{
+		// 流式长回答靠 idle 看门狗兜底，这里只管「等响应头」与连接层
+		ResponseHeaderTimeout: 3 * time.Minute,
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   20,
+		IdleConnTimeout:       30 * time.Second,
+	}
+	// 代理：显式配置优先，未配置时跟随环境变量（与 glm-ext 同口径）。
+	// IDE 通道实测直连稳定，代理只在国内网络异常时按需开启。
+	if p := strings.TrimSpace(opt.Proxy); p != "" {
+		if u, err := url.Parse(p); err == nil {
+			tr.Proxy = http.ProxyURL(u)
+		}
+	} else {
+		tr.Proxy = http.ProxyFromEnvironment
+	}
 	if opt.Insecure {
 		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // 仅调试用（配合本地抓包看明文）
 	}
@@ -72,7 +91,7 @@ func NewClient(ctx context.Context, cred *Credential, opt Opt) (*Client, error) 
 		return nil, NewErr(CUpstream, "初始化 cookie jar 失败: %v", err)
 	}
 	return &Client{Cred: cred, Base: u.Scheme + "://" + u.Host, Timeout: opt.Timeout,
-		Debug: opt.Debug, ctx: ctx,
+		Debug: opt.Debug, IdleTimeout: DefaultTimeout, ctx: ctx,
 		hc: &http.Client{Jar: jar, Transport: tr}, jarURL: u}, nil
 }
 
@@ -197,6 +216,45 @@ func (c *Client) Do(method, path string, query map[string]string, body any) (jso
 	return c.envelope(resp, rawBody)
 }
 
+// doRaw 发一次非流式请求并返回**原始响应体与状态码**，不校验业务信封。
+//
+// 用途：调用方需要区分「HTTP 失败」与「非 0 业务码属于正常语义」（如 daily_login_score
+// 的 status=10001「今日已领取」）。401 自愈重试一次，与 Do 一致。
+func (c *Client) doRaw(method, path string, query map[string]string, body any, accept string) ([]byte, int, error) {
+	if err := c.EnsureToken(false); err != nil {
+		return nil, 0, err
+	}
+	c.syncCookies()
+	ctx, cancel := context.WithTimeout(c.ctx, c.Timeout)
+	defer cancel()
+	req, err := c.build(ctx, method, path, query, body, accept)
+	if err != nil {
+		return nil, 0, err
+	}
+	resp, err := c.raw(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	if resp.StatusCode == http.StatusUnauthorized {
+		resp.Body.Close()
+		if err := c.EnsureToken(true); err != nil {
+			return nil, 0, err
+		}
+		if req, err = c.build(ctx, method, path, query, body, accept); err != nil {
+			return nil, 0, err
+		}
+		if resp, err = c.raw(req); err != nil {
+			return nil, 0, err
+		}
+	}
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(decodeBody(resp), 8<<20))
+	if err != nil {
+		return nil, resp.StatusCode, &Error{Code: CUpstream, Message: "读响应失败: " + err.Error(), RequestID: c.LastRID}
+	}
+	return raw, resp.StatusCode, nil
+}
+
 // envelope 校验 HTTP 状态与业务信封，返回 result。
 func (c *Client) envelope(resp *http.Response, body []byte) (json.RawMessage, error) {
 	var env struct {
@@ -239,16 +297,21 @@ func (c *Client) Stream(body any) (*http.Response, error) {
 		return nil, err
 	}
 	c.syncCookies()
-	req, err := c.build(c.ctx, http.MethodPost, EP_CHAT, nil, body, acceptSSE) // 刻意不带 timeout
+	// 流式：不设总超时（长回答会被掐断且没有终止帧），改用「挂 ctx + 读 body 后包空闲监控」
+	ctx, cancel := context.WithCancel(c.ctx)
+	req, err := c.build(ctx, http.MethodPost, EP_CHAT, nil, body, acceptSSE)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 	resp, err := c.raw(req)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 	if resp.StatusCode >= 400 || !strings.Contains(resp.Header.Get("Content-Type"), "text/event-stream") {
 		defer resp.Body.Close()
+		cancel()
 		b, _ := io.ReadAll(io.LimitReader(decodeBody(resp), 64<<10))
 		_, err := c.envelope(resp, b) // 先过一遍信封判定，把鉴权/限流类错误翻译成对应 Code
 		if err != nil {
@@ -258,6 +321,8 @@ func (c *Client) Stream(body any) (*http.Response, error) {
 			resp.StatusCode, resp.Header.Get("Content-Type")), HTTPStatus: resp.StatusCode,
 			Detail: snippet(string(b)), RequestID: c.LastRID}
 	}
+	// cancel 的所有权交给监控 body：Close 时取消（含空闲超时主动取消）
+	resp.Body = Monitor(resp.Body, c.IdleTimeout, cancel)
 	return resp, nil
 }
 

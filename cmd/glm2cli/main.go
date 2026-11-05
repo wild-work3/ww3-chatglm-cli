@@ -6,7 +6,7 @@ package main
 import (
 	"os"
 
-	"github.com/pyichiban/chatglm-cli/internal/cli"
+	"wild-work3/chatglm-cli/internal/cli"
 )
 
 func main() {

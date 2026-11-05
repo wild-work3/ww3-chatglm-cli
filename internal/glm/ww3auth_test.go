@@ -48,11 +48,11 @@ func TestW3CredentialSaveKeepsUnknown(t *testing.T) {
 	b, _ := os.ReadFile(filepath.Join(auths, name+".json"))
 	var back struct {
 		Auth struct {
-			AccessToken  string `json:"accessToken"`
-			RefreshToken string `json:"refreshToken"`
-			ExpiresAt    int64  `json:"expiresAt"`
-			MachineID    string `json:"machineId"`
-			APIHost      string `json:"apiHost"`
+			AccessToken  string         `json:"accessToken"`
+			RefreshToken string         `json:"refreshToken"`
+			ExpiresAt    int64          `json:"expiresAt"`
+			MachineID    string         `json:"machineId"`
+			APIHost      string         `json:"apiHost"`
 			Extra        map[string]any `json:"extra"`
 		} `json:"auth"`
 		Account struct {

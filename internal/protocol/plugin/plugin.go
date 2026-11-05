@@ -26,9 +26,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pyichiban/chatglm-cli/internal/protocol/jsonl"
-	"github.com/pyichiban/chatglm-cli/internal/protocol/meta"
-	"github.com/pyichiban/chatglm-cli/internal/protocol/rpc"
+	"wild-work3/chatglm-cli/internal/protocol/jsonl"
+	"wild-work3/chatglm-cli/internal/protocol/meta"
+	"wild-work3/chatglm-cli/internal/protocol/rpc"
 )
 
 // 运行形态常量（main 里分发子命令用）。

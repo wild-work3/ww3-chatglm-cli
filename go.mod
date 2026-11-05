@@ -1,4 +1,4 @@
-module github.com/pyichiban/chatglm-cli
+module wild-work3/chatglm-cli
 
 go 1.26
 

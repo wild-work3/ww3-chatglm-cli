@@ -41,7 +41,15 @@ type App struct {
 	Def   string // 缺省命令：argv 未给命令名时使用
 	Out   io.Writer
 	cmds  []*Command
+	ver   func() string // --version 输出行（未注册则不认这个开关）
 }
+
+// SetVersion 注册 `--version`：任意位置出现即把版本行打到 **stdout** 并结束（返回 ErrHelp，
+// 调用方 exit 0）。只给 gateway/core 这类要被人手查版本的二进制用；插件不必。
+//
+// 为什么做在外壳里：各 main 的开关都是按命令隔离的，`--version` 属于「不给命令名也要能查」
+// 的全局信息，写进 serve 的 FlagSet 就变成 `serve --version` 这种别扭形态。
+func (a *App) SetVersion(fn func() string) { a.ver = fn }
 
 // NewApp 创建命令集；def 为缺省命令名（通常为协议本体 "call"）。
 func NewApp(name, short, def string) *App {
@@ -129,6 +137,15 @@ func (a *App) Parse(args []string) (*Command, error) {
 	case "--help", "-h", "help":
 		a.Usage()
 		return nil, ErrHelp
+	}
+	// --version 不看命令：`wild-work3 --version` 与 `wild-work3 serve --version` 都要能查
+	if a.ver != nil {
+		for _, s := range args {
+			if s == "--version" {
+				fmt.Fprintln(os.Stdout, a.ver())
+				return nil, ErrHelp
+			}
+		}
 	}
 	// 第一个位置参数是命令名；以 "-" 开头说明没给命令名（用缺省命令）。
 	name := args[0]

@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pyichiban/chatglm-cli/internal/channel"
-	"github.com/pyichiban/chatglm-cli/internal/glm"
-	pcli "github.com/pyichiban/chatglm-cli/internal/protocol/cli"
+	"wild-work3/chatglm-cli/internal/channel"
+	"wild-work3/chatglm-cli/internal/glm"
+	pcli "wild-work3/chatglm-cli/internal/protocol/cli"
 )
 
 func registerRaw(app *pcli.App, reg map[string]handler) {
@@ -128,13 +128,31 @@ func runSchema() int {
 			"ok": 0, "upstream_error": 1, "usage_error": 2, "auth_error": 3,
 			"transient_rejection": 4, "stream_truncated": 5, "rate_limited": 6, "not_proven": 7,
 		},
-		"retryable":   []string{"transient_rejection", "stream_truncated", "rate_limited"},
-		"channel_id":  channel.ID,
+		"retryable":  []string{"transient_rejection", "stream_truncated", "rate_limited"},
+		"channel_id": channel.ID,
+		"abilities": map[string]any{
+			// glm 只有 web 凭据通道（无匿名模式）；能力如实声明，不虚构
+			"web": map[string]any{
+				"trigger": "--auth <凭据标识>（或 --auth auto 自动挑第一条未过期）",
+				"chat":    true, "search": true, "thinking": true,
+				"image": true, "image_ref": true,
+				"conv_manage": true, "agents": true,
+				"models": "glm/ 前缀静态表（glm2cli models），无公开模型目录接口",
+			},
+		},
+		"quirks": []string{
+			"请求带 X-Sign 签名（上游 WAF），签名算法内嵌于 internal/glm/sign",
+			"会话/消息 ID 一律 24 位 hex（--cid/--message-id 本地预校验，不合法直接 usage_error）",
+			"conv-history 的 output 是终态 SSE 帧，解析后才是正文；--raw 附带原始帧",
+			"凭据是 JWT（payload exp 即过期时间，客户端不验签）；过期自动走 user/refresh",
+			"conv-list 内部翻页一次取全量（recent_list），--limit/--offset 在过滤后截断",
+			"多轮对话靠 conversation_id 续轮：上游自己维护历史，messages 只收单条 user 提问",
+		},
 		"ipc_methods": "见 `glm2cli manifest` 的 capabilities",
 		"gaps": []string{
 			"不支持工具调用（chat.generate 收到 tools 直接忽略）",
-			"不支持多轮（messages 只取最后一个 user 提示词）",
-			"不支持代理（V12，上游指纹通道限制）",
+			"不支持多轮（带 assistant 历史的请求显式拒绝 bad_params；续轮靠 conversation_id）",
+			"无 token 用量（上游不返回任何 token/计费字段，usage 只有 time_ms/first_token_ms）",
 			"systemone.decide 未实现（not_supported）",
 		},
 	})

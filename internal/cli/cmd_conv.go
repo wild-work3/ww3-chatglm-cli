@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pyichiban/chatglm-cli/internal/glm"
-	pcli "github.com/pyichiban/chatglm-cli/internal/protocol/cli"
+	"wild-work3/chatglm-cli/internal/glm"
+	pcli "wild-work3/chatglm-cli/internal/protocol/cli"
 )
 
 func mustCID(v, what string) (string, error) {
@@ -30,8 +30,10 @@ func registerConv(app *pcli.App, reg map[string]handler) {
 		c := app.Cmd("conv-list", "会话列表（内部翻页一次取全量）")
 		agent := c.Str("agent", "", "按 assistant_id 过滤（含别名 main|drawing|read|video|study|search|ppt）")
 		grep := c.Str("grep", "", "按标题子串过滤")
+		limit := c.Int("limit", 0, "最多返回条数（0=不限，契约 §4）")
+		offset := c.Int("offset", 0, "跳过条数（与 --limit 配合分页）")
 		cf := addCommon(c)
-		reg["conv-list"] = func(*pcli.Command) int { return runConvList(agent, grep, cf) }
+		reg["conv-list"] = func(*pcli.Command) int { return runConvList(agent, grep, limit, offset, cf) }
 	}
 	{
 		c := app.Cmd("conv-show", "会话详情（标题/agent 等 meta）")
@@ -82,7 +84,7 @@ func newEnv(cf *common) *env {
 	return e
 }
 
-func runConvList(agent, grep *string, cf *common) int {
+func runConvList(agent, grep *string, limit, offset *int, cf *common) int {
 	e := newEnv(cf)
 	_, c, err := e.client(cf)
 	if err != nil {
@@ -99,7 +101,7 @@ func runConvList(agent, grep *string, cf *common) int {
 		e.fail(err)
 		return code(err)
 	}
-	n := 0
+	n, skip := 0, 0
 	for _, raw := range list {
 		var m struct {
 			AssistantID string `json:"assistant_id"`
@@ -111,6 +113,14 @@ func runConvList(agent, grep *string, cf *common) int {
 		}
 		if *grep != "" && !strings.Contains(m.Title, *grep) {
 			continue
+		}
+		// --offset 先跳过 N 条，--limit 再截断（均对过滤后的序列生效，契约 §4）
+		if *offset > 0 && skip < *offset {
+			skip++
+			continue
+		}
+		if *limit > 0 && n >= *limit {
+			break
 		}
 		e.ev(&glm.Event{Type: "item", Cmd: "conv-list", Data: raw})
 		n++

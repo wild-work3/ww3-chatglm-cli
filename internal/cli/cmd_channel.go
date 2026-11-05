@@ -19,8 +19,8 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/pyichiban/chatglm-cli/internal/channel"
-	pcli "github.com/pyichiban/chatglm-cli/internal/protocol/cli"
+	"wild-work3/chatglm-cli/internal/channel"
+	pcli "wild-work3/chatglm-cli/internal/protocol/cli"
 )
 
 // mainCtx 是 Main 构造的信号感知 context（注册先于 env 构造，用包级变量传递）。

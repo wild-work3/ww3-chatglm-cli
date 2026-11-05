@@ -7,7 +7,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/pyichiban/chatglm-cli/internal/protocol/jsonl"
+	"wild-work3/chatglm-cli/internal/protocol/jsonl"
 )
 
 // MethodFunc 处理一个 invoke。ctx 用于取消；params 是原始 JSON。
