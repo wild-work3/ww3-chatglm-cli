@@ -1,0 +1,22 @@
+{
+  "account": {
+    "enterpriseId": "",
+    "nickname": "Smurf7788",
+    "uid": "6982e0ad0efeac7998789a48"
+  },
+  "auth": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJTbXVyZjc3ODgiLCJleHAiOjE3OTI4NTIzODYsIm5iZiI6MTc5Mjc2NTk4NiwiaWF0IjoxNzkyNzY1OTg2LCJqdGkiOiI3YjU3YWZiOGI0ODY0ZjVhOTkwM2E1ZDgzYmM2ZmM2YiIsInVpZCI6IjY5ODJlMGFkMGVmZWFjNzk5ODc4OWE0OCIsImRldmljZV9pZCI6ImU2ZmYwNDE2NDNmNjRlOTliNWJhOTFmMWYzMDY4NTg4IiwidHlwZSI6ImFjY2VzcyJ9.53Gim_tmdzUN6OF1yHfPGWzn9im6gzbxYuPqsOx9JO8",
+    "apiHost": "",
+    "baizhiCookie": "",
+    "consoleCookie": "",
+    "deviceId": "",
+    "domain": "chatglm.cn",
+    "expiresAt": 1792852386,
+    "extra": null,
+    "machineId": "",
+    "machineToken": "",
+    "machineType": "",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJTbXVyZjc3ODgiLCJleHAiOjE4MDc5NjA1NTAsIm5iZiI6MTc5MjQwODU1MCwiaWF0IjoxNzkyNDA4NTUwLCJqdGkiOiJiMWRiNWE3ZDM2N2Q0YzliYmJiYzJjNzMxMzE5NmQ1NiIsInVpZCI6IjY5ODJlMGFkMGVmZWFjNzk5ODc4OWE0OCIsImRldmljZV9pZCI6ImU2ZmYwNDE2NDNmNjRlOTliNWJhOTFmMWYzMDY4NTg4IiwidHlwZSI6InJlZnJlc2gifQ.yM1MPa89zOTheI3XFuips4mkz0ooBeVRiHXSmx9vYTU",
+    "signingSecret": ""
+  }
+}

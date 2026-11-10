@@ -1,7 +1,7 @@
 # glm2cli 设计与实现（ww3 渠道插件契约）
 
 > glm2cli 是智谱清言（chatglm.cn 私有接口，IDE 指纹通道）的 **Go 单文件 CLI**。
-> 自 v2.0.0 起按 ww3 项目 `docs/PLUGIN_CLI.md` 契约重构：**既是独立命令行工具，也直接是
+> 自 v2.0.0 起按 ww3 项目 `protocol/docs/PLUGIN_CLI.md` 契约重构：**既是独立命令行工具，也直接是
 > ww3 的渠道插件**（命令名 `glm2cli`，PluginID `glm`）。
 > 上游协议事实源：`chatglm2api/docs/PROTOCOL.md`（[实证] 结论不重复，本文只写 CLI 形态）。
 
@@ -35,7 +35,7 @@ scripts/build.sh          CGO_ENABLED=0 单文件，win/linux 双平台
 internal/{glm,channel}/testdata/contract.json   与 Python 仓逐字节一致的契约
 ```
 
-## 3. ww3 契约命令（docs/PLUGIN_CLI.md §2）
+## 3. ww3 契约命令（protocol/docs/PLUGIN_CLI.md §2）
 
 | 命令 | 行为 |
 |---|---|

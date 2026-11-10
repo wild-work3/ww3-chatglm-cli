@@ -1,0 +1,23 @@
+{
+  "auth": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJTbXVyZjc3ODgiLCJleHAiOjE3OTMxMDE0OTEsIm5iZiI6MTc5MzAxNTA5MSwiaWF0IjoxNzkzMDE1MDkxLCJqdGkiOiI4YTNkYWQ4ZWVlMmY0MmM2YjFhNWIyMzQxZGJiODE1YiIsInVpZCI6IjY5ODJlMGFkMGVmZWFjNzk5ODc4OWE0OCIsImRldmljZV9pZCI6ImU2ZmYwNDE2NDNmNjRlOTliNWJhOTFmMWYzMDY4NTg4IiwidHlwZSI6ImFjY2VzcyJ9.JOi2y9Pu8paSyRUckjDJPK8LDneFu7GBAz-F_h8XwMM",
+    "deviceId": "e6ff041643f64e99b5ba91f1f3068588",
+    "expiresAt": 1792852386,
+    "nickname": "Smurf7788",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJTbXVyZjc3ODgiLCJleHAiOjE4MDc5NjA1NTAsIm5iZiI6MTc5MjQwODU1MCwiaWF0IjoxNzkyNDA4NTUwLCJqdGkiOiJiMWRiNWE3ZDM2N2Q0YzliYmJiYzJjNzMxMzE5NmQ1NiIsInVpZCI6IjY5ODJlMGFkMGVmZWFjNzk5ODc4OWE0OCIsImRldmljZV9pZCI6ImU2ZmYwNDE2NDNmNjRlOTliNWJhOTFmMWYzMDY4NTg4IiwidHlwZSI6InJlZnJlc2gifQ.yM1MPa89zOTheI3XFuips4mkz0ooBeVRiHXSmx9vYTU",
+    "userId": "6982e0ad0efeac7998789a48",
+    "apiHost": "",
+    "baizhiCookie": "",
+    "consoleCookie": "",
+    "domain": "chatglm.cn",
+    "extra": null,
+    "machineId": "",
+    "machineToken": "",
+    "machineType": "",
+    "signingSecret": ""
+  },
+  "account": {
+    "nickname": "Smurf7788",
+    "uid": "6982e0ad0efeac7998789a48"
+  }
+}

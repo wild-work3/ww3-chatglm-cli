@@ -1,22 +1,12 @@
-# 凭据（绝不入库）：本工具默认读 ./glm_credential.json 与 ~/.glm2cli/credential.json
-glm_credential.json
-*.credential.json
-.env
-
 # 构建产物
 dist/
 *.exe
-*.exe~
-/chatglm-cli
-/glm2cli
-*.test
-*.out
-
-# Go 工作区与编辑器
-vendor/
-.idea/
-.vscode/
-*.swp
-.DS_Store
-Thumbs.db
-temp/
+*.zip
+*.sha256
+# 插件运行时数据根（--data 缺省落在 exe 所在目录，即本仓根）
+# 注意：必须写成 /xxx 锚定到仓根，否则会把 internal/protocol/stat/ 这类源码目录也忽略掉（实测踩过）
+/.data/
+/logs/
+/stat/
+/auths/
+__pycache__/

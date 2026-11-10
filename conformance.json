@@ -1,0 +1,120 @@
+{
+  "schema": 1,
+  "id": "chatglm-cli",
+  "kind": "channel",
+  "model": "glm/chatglm:moe_53f",
+  "live_model": "glm/chatglm:moe_53f",
+  "auth": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjIwNTEyMjI0MDAsInN1YiI6ImdsbTJjbGktbW9jayIsInVzZXJfaWQiOiJnbG0yY2xpLW1vY2siLCJkZXZpY2VfaWQiOiJtb2NrLWRldmljZS1pZC0yNGhleCJ9.mocksig",
+    "deviceId": "mock-device-id-24hex",
+    "expiresAt": 2051222400,
+    "nickname": "glm2cli-mock",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjIwNTEyMjI0MDAsInN1YiI6ImdsbTJjbGktbW9jayIsInVzZXJfaWQiOiJnbG0yY2xpLW1vY2siLCJkZXZpY2VfaWQiOiJtb2NrLWRldmljZS1pZC0yNGhleCJ9.mocksig",
+    "userId": "glm2cli-mock"
+  },
+  "account": {
+    "nickname": "glm2cli-mock",
+    "uid": "glm2cli-mock"
+  },
+  "routes": [
+    {
+      "method": "POST",
+      "path": ".*assistant/stream.*",
+      "kind": "sse_raw",
+      "body": "data: {\"id\":\"glm-mock\",\"parts\":[{\"content\":[{\"text\":\"你好，\",\"type\":\"text\"}],\"id\":\"p1\",\"role\":\"assistant\",\"status\":\"init\"}],\"status\":\"init\"}\n\ndata: {\"id\":\"glm-mock\",\"parts\":[{\"content\":[{\"text\":\"你好，我是 glm \",\"type\":\"text\"}],\"id\":\"p1\",\"role\":\"assistant\",\"status\":\"init\"}],\"status\":\"init\"}\n\ndata: {\"id\":\"glm-mock\",\"parts\":[{\"content\":[{\"text\":\"你好，我是 glm mock 上游。\",\"type\":\"text\"}],\"id\":\"p1\",\"role\":\"assistant\",\"status\":\"finish\"}],\"status\":\"finish\"}\n"
+    },
+    {
+      "method": "GET",
+      "path": ".*user-api/user/info.*",
+      "kind": "json",
+      "body": "{\"status\":0,\"message\":\"ok\",\"result\":{\"user_id\":\"glm-mock\",\"name\":\"glm-mock\"}}"
+    },
+    {
+      "method": "GET",
+      "path": ".*member-api/member/member_info.*",
+      "kind": "json",
+      "body": "{\"status\":0,\"message\":\"ok\",\"result\":{\"left_score\":10000,\"left_token\":100000,\"score_rule\":\"免费用户，登录赠送200积分/天\",\"is_member\":false}}"
+    },
+    {
+      "method": "GET",
+      "path": ".*daily/check_in_info.*",
+      "kind": "json",
+      "body": "{\"status\":0,\"message\":\"ok\",\"result\":{\"check_in_today_status\":0,\"check_in_total_days\":0,\"prize_chance\":0}}"
+    },
+    {
+      "method": "POST",
+      "path": ".*daily/check_in.*",
+      "kind": "json",
+      "body": "{\"status\":0,\"message\":\"ok\",\"result\":{\"ok\":true}}"
+    },
+    {
+      "method": "POST",
+      "path": ".*member-api/member/daily_login_score.*",
+      "kind": "json",
+      "body": "{\"status\":10001,\"message\":\"今日已领取\"}"
+    },
+    {
+      "method": "POST",
+      "path": ".*/user-api/user/refresh.*",
+      "kind": "json",
+      "body": "{\"status\":0,\"message\":\"ok\",\"result\":{\"access_token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjIwNTEyMjI0MDAsInN1YiI6ImdsbTJjbGktbW9jayIsInVzZXJfaWQiOiJnbG0yY2xpLW1vY2siLCJkZXZpY2VfaWQiOiJtb2NrLWRldmljZS1pZC0yNGhleCJ9.mocksig\",\"refresh_token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjIwNTEyMjI0MDAsInN1YiI6ImdsbTJjbGktbW9jayIsInVzZXJfaWQiOiJnbG0yY2xpLW1vY2siLCJkZXZpY2VfaWQiOiJtb2NrLWRldmljZS1pZC0yNGhleCJ9.mocksig\",\"user_id\":\"glm2cli-mock\"}}"
+    },
+    {
+      "method": "POST",
+      "path": ".*/mainchat-api/conversation/recent_list.*",
+      "kind": "json",
+      "body": "{\"status\":0,\"message\":\"ok\",\"result\":{\"has_more\":false,\"conversation_list\":[{\"id\":\"64a1b2c3d4e5f6071829ab3c\",\"title\":\"准入测试会话\",\"assistant_id\":\"659a2b3c4d5e6f708192a3b4\",\"update_time\":\"2026-10-30 12:00:00\"}]}}"
+    },
+    {
+      "method": "GET",
+      "path": ".*/mainchat-api/conversation/title.*",
+      "kind": "json",
+      "body": "{\"status\":0,\"message\":\"ok\",\"result\":{\"title\":\"准入测试会话\"}}"
+    },
+    {
+      "method": "GET",
+      "path": ".*/mainchat-api/conversation/messages.*",
+      "kind": "json",
+      "body": "{\"status\":0,\"message\":\"ok\",\"result\":{\"messages\":[{\"id\":\"6f11a2b3c4d5e6071829ff0e\",\"create_time\":\"2026-10-30 12:00:00\",\"input\":{\"content\":[{\"type\":\"text\",\"text\":\"用一句话介绍你自己。\"}]},\"output\":{\"parts\":[{\"content\":[{\"text\":\"你好，我是 glm mock 上游。\",\"type\":\"text\"}],\"id\":\"6f11a2b3c4d5e6071829ff0e\",\"role\":\"assistant\",\"status\":\"finish\"}],\"status\":\"finish\"}}]}}"
+    },
+    {
+      "method": "POST",
+      "path": ".*/mainchat-api/conversation/modify_title.*",
+      "kind": "json",
+      "body": "{\"status\":0,\"message\":\"ok\",\"result\":{\"success\":true}}"
+    },
+    {
+      "method": "POST",
+      "path": ".*/mainchat-api/conversation/bulk_delete.*",
+      "kind": "json",
+      "body": "{\"status\":0,\"message\":\"ok\",\"result\":{\"success\":true,\"deleted\":1}}"
+    },
+    {
+      "method": "POST",
+      "path": ".*/mainchat-api/stream/stop_stream.*",
+      "kind": "json",
+      "body": "{\"status\":0,\"message\":\"ok\",\"result\":{\"success\":true}}"
+    },
+    {
+      "method": "POST",
+      "path": ".*/mainchat-api/stream/update_status.*",
+      "kind": "json",
+      "body": "{\"status\":0,\"message\":\"ok\",\"result\":{\"success\":true}}"
+    }
+  ],
+  "single_turn": true,
+  "no_token_usage": true,
+  "session": true,
+  "session_cid": "64a1b2c3d4e5f6071829ab3c",
+  "auth_prefixes": [
+    "chatglm",
+    "glm"
+  ],
+  "notes": [
+    "web 逆向渠道（WEB_CLI_CONTRACT 案例 2）：会话管理 7 命令全实现",
+    "manifest.id=glm；IDE 指纹通道（WEB 通道画图族需动态风控，无法离线复刻）",
+    "conv-read 按契约用 --message-id（history_id）",
+    "模型清单是静态的（不打上游）",
+    "积分/签到/额度刷新合并自 glm-ext（accounts.checkin/refresh/resource_detail、credits.get）"
+  ]
+}

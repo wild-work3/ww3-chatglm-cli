@@ -1,6 +1,6 @@
 // cmd_channel.go —— ww3 PLUGIN_CLI 契约的四个必需命令 + 可选能力命令。
 //
-// 这些命令是 core 的调用面，行为逐条对齐 docs/PLUGIN_CLI.md §2：
+// 这些命令是 core 的调用面，行为逐条对齐 protocol/docs/PLUGIN_CLI.md §2：
 //   - call  ：stdin 读一帧 invoke → 事件流 + 一帧 result → 退出（一请求一进程，W3-20）；
 //   - stdio ：JSONL RPC 循环，进程长驻（与 call 共用同一个 registry）；
 //   - manifest ：打印 manifest.json（--out 落文件）；
